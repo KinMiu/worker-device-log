@@ -24,7 +24,7 @@ COPY --from=builder /app/worker-log .
 # Copy folder config atau .env jika aplikasi Anda membutuhkannya saat runtime
 # (Sesuaikan jika folder config Anda berisi file .json/.yaml yang wajib dibaca)
 COPY --from=builder /app/config ./config
-COPY --from=builder /app/.env* ./ 2>/dev/null || true
+COPY --from=builder /app/.env* ./
 
 # Jalankan binary Go
 CMD ["./worker-log"]
