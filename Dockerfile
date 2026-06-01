@@ -1,5 +1,5 @@
 # Stage 1: Build binary menggunakan Golang resmi (Gunakan versi Go modern)
-FROM golang:1.22-alpine AS builder
+FROM golang:1.26-alpine AS builder
 
 WORKDIR /app
 
