@@ -1,6 +1,7 @@
 package services
 
 import (
+	"database/sql"
 	"device-log/config"
 	"fmt"
 	"sync"
@@ -21,24 +22,7 @@ func MarkOnline(macAddress string) {
 
 	val, exists := deviceCache.Load(macAddress)
 
-	if exists {
-		state := val.(*DeviceState)
-
-		state.Mu.Lock()
-		state.LastPing = now
-		wasOffline := !state.IsOnline
-		if wasOffline {
-			state.IsOnline = true
-		}
-		state.Mu.Unlock()
-
-		if wasOffline {
-			go logStateToDB(state.ID, macAddress, true)
-		}
-		return
-	}
-
-	go func() {
+	if !exists {
 		var id string
 		query := `SELECT id FROM "Device" WHERE "macAddress" = $1`
 		err := config.DB.QueryRow(query, macAddress).Scan(&id)
@@ -48,20 +32,35 @@ func MarkOnline(macAddress string) {
 
 		newState := &DeviceState{
 			ID:       id,
-			IsOnline: true,
+			IsOnline: false,
 			LastPing: now,
 		}
 
-		deviceCache.Store(macAddress, newState)
+		val, _ = deviceCache.LoadOrStore(macAddress, newState)
+	}
 
-		var lastState string
-		logQuery := `SELECT state FROM "DeviceStatusLog" WHERE "deviceId" = $1 ORDER BY "createAt" DESC LIMIT 1`
-		err = config.DB.QueryRow(logQuery, id).Scan(&lastState)
+	state := val.(*DeviceState)
 
-		if err != nil || lastState != "ONLINE" {
-			logStateToDB(id, macAddress, true)
-		}
-	}()
+	state.Mu.Lock()
+	state.LastPing = now
+	wasOffline := !state.IsOnline
+
+	if wasOffline {
+		state.IsOnline = true
+	}
+	state.Mu.Unlock()
+
+	if wasOffline {
+		go func(id string, mac string) {
+			var lastState string
+			logQuery := `SELECT state FROM "DeviceStatusLog" WHERE "deviceId" = $1 ORDER BY "createAt" DESC LIMIT 1`
+			err := config.DB.QueryRow(logQuery, id).Scan(&lastState)
+
+			if err == sql.ErrNoRows || (err == nil && lastState != "ONLINE") {
+				logStateToDB(id, mac, true)
+			}
+		}(state.ID, macAddress)
+	}
 }
 
 func logStateToDB(id string, macAddress string, isOnline bool) {
@@ -79,9 +78,9 @@ func logStateToDB(id string, macAddress string, isOnline bool) {
 	`
 
 	_, err := config.DB.Exec(insertLog, id, stateStr, reason)
-
 	if err != nil {
 		fmt.Printf("Failed insert log %s: %v\n", macAddress, err)
+		return
 	}
 
 	fmt.Printf("Logged: %s is %s\n", macAddress, stateStr)
