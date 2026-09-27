@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"log"
 	"os"
+	"time"
 
 	_ "github.com/lib/pq"
 )
@@ -26,5 +27,10 @@ func ConnectDB() {
 		log.Fatal("Fail to connect to db", err)
 	}
 
-	log.Println("Connected to DB")
+	DB.SetMaxOpenConns(25)
+	DB.SetMaxIdleConns(10)
+	DB.SetConnMaxLifetime(5 * time.Minute)
+	DB.SetConnMaxIdleTime(2 * time.Minute)
+
+	log.Println("Connected to DB with connection pooling configured")
 }

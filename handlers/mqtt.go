@@ -11,7 +11,9 @@ func HandleIncomingMessage(client mqtt.Client, msg mqtt.Message) {
 	topicParts := strings.Split(msg.Topic(), "/")
 
 	if len(topicParts) >= 2 {
-		macaddress := topicParts[1]
-		services.MarkOnline(macaddress)
+		macaddress := strings.TrimSpace(topicParts[1])
+		if macaddress != "" {
+			services.MarkOnline(macaddress)
+		}
 	}
 }
